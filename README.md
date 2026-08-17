@@ -7,6 +7,7 @@ Coming-soon landing page for Saferni, an AI travel agent that plans full trips f
 - `assets/logo-480.png` — resized copy embedded in the page
 - `assets/logo-primary.png` — primary logo lockup (icon + wordmark), for reference/future use
 - `assets/bg-sky.jpg` — wing/clouds hero background, embedded inline in the page
+- `api/waitlist.js` — Vercel serverless function backing the waitlist form
 
 ## Preview
 
@@ -16,4 +17,31 @@ Open `index.html` directly in a browser, or serve the folder locally:
 python3 -m http.server 8000
 ```
 
-Then visit `http://localhost:8000`.
+Then visit `http://localhost:8000`. Note: the waitlist form calls `/api/waitlist`,
+which only exists once deployed to Vercel (or run via `vercel dev`) — it 404s
+under the plain static server above.
+
+## Waitlist backend
+
+Deployed on Vercel at **https://saferni-landing.vercel.app**, connected to this
+GitHub repo (`osarayrah/saferni`) — every push to `main` auto-deploys.
+
+Signups are stored in a private Vercel Blob store (`saferni-waitlist`), one
+JSON file per email at `waitlist/<email>.json`, keyed by address so repeat
+signups overwrite rather than duplicate. The blob store is private — files
+aren't reachable without the project's read/write token.
+
+`api/waitlist.js` handles both sides:
+
+- `POST /api/waitlist` — used by the form; body `{ "email": "..." }`.
+- `GET /api/waitlist?token=<ADMIN_TOKEN>` — returns the full list as JSON
+  (`{ count, entries: [{ email, at }] }`). `ADMIN_TOKEN` is set as an
+  environment variable on the Vercel project (Production/Preview/Development)
+  — get it with `vercel env pull` or from the Vercel dashboard's
+  Settings → Environment Variables.
+
+To view the list right now:
+
+```
+curl "https://saferni-landing.vercel.app/api/waitlist?token=$ADMIN_TOKEN"
+```

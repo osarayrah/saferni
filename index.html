@@ -226,6 +226,20 @@
     color: var(--ink-soft);
   }
 
+  .form-error {
+    display: none;
+    margin-top: 0.9rem;
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: #b3261e;
+  }
+  .form-error.show { display: block; }
+
+  button[disabled] {
+    opacity: 0.65;
+    cursor: default;
+  }
+
   .platforms {
     margin-top: clamp(2.75rem, 7vw, 3.5rem);
     padding-top: clamp(1.5rem, 4vw, 2rem);
@@ -260,6 +274,7 @@
     You're on the list — we'll be in touch.
   </p>
   <p class="fine-print" id="fine-print">No spam. One email when Saferni opens up.</p>
+  <p class="form-error" id="form-error" role="alert"></p>
 
   <p class="platforms">iOS · Android · Web — English &amp; Arabic at launch</p>
 </main>
@@ -280,12 +295,29 @@
     var form = document.getElementById('waitlist-form');
     var confirmEl = document.getElementById('confirm');
     var finePrint = document.getElementById('fine-print');
+    var errorEl = document.getElementById('form-error');
+    var button = form.querySelector('button[type="submit"]');
+    var buttonLabel = button.textContent;
     var STORAGE_KEY = 'saferni_waitlist';
 
     if (localStorage.getItem(STORAGE_KEY)) {
       form.classList.add('hidden');
       finePrint.style.display = 'none';
       confirmEl.classList.add('show');
+    }
+
+    function showSuccess(email) {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify({ email: email, at: new Date().toString() }));
+      } catch (err) { /* storage unavailable, still confirm */ }
+      form.classList.add('hidden');
+      finePrint.style.display = 'none';
+      confirmEl.classList.add('show');
+    }
+
+    function showError(message) {
+      errorEl.textContent = message;
+      errorEl.classList.add('show');
     }
 
     form.addEventListener('submit', function (e) {
@@ -295,12 +327,27 @@
         form.reportValidity();
         return;
       }
-      try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify({ email: email, at: new Date().toString() }));
-      } catch (err) { /* storage unavailable, still confirm */ }
-      form.classList.add('hidden');
-      finePrint.style.display = 'none';
-      confirmEl.classList.add('show');
+
+      errorEl.classList.remove('show');
+      button.disabled = true;
+      button.textContent = 'Sending…';
+
+      fetch('/api/waitlist', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email }),
+      })
+        .then(function (res) {
+          if (!res.ok) throw new Error('request failed');
+          showSuccess(email);
+        })
+        .catch(function () {
+          showError("Something went wrong — please try again.");
+        })
+        .finally(function () {
+          button.disabled = false;
+          button.textContent = buttonLabel;
+        });
     });
   })();
 </script>
