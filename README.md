@@ -1,6 +1,6 @@
-# Saferni
+# Safferni
 
-Coming-soon landing page for Saferni, an AI travel agent that plans full trips from a single conversation.
+Coming-soon landing page for Safferni, an AI travel agent that plans full trips from a single conversation.
 
 - `index.html` — self-contained single-page site (fonts and logo embedded inline, no build step)
 - `assets/logo-original.png` — source app icon (S + airplane mark)
