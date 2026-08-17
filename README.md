@@ -23,8 +23,10 @@ under the plain static server above.
 
 ## Waitlist backend
 
-Deployed on Vercel at **https://saferni-landing.vercel.app**, connected to this
+Deployed on Vercel at **https://safferni.site**, connected to this
 GitHub repo (`osarayrah/saferni`) — every push to `main` auto-deploys.
+(Also reachable at the Vercel-assigned `saferni-landing-*.vercel.app` URLs,
+though those sit behind Vercel's deployment-protection SSO by default.)
 
 Signups are stored in a private Vercel Blob store (`saferni-waitlist`), one
 JSON file per email at `waitlist/<email>.json`, keyed by address so repeat
@@ -43,5 +45,5 @@ aren't reachable without the project's read/write token.
 To view the list right now:
 
 ```
-curl "https://saferni-landing.vercel.app/api/waitlist?token=$ADMIN_TOKEN"
+curl "https://safferni.site/api/waitlist?token=$ADMIN_TOKEN"
 ```
