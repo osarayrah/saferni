@@ -576,11 +576,34 @@ function AuthenticatedRouter({ user }: { user: AppUser }) {
   return <Shell user={user}><Switch><Route path="/" component={() => <HomeRoute user={user} />} /><Route path="/planner" component={PlannerPage} /><Route path="/results" component={ResultsPage} /><Route path="/hotel/:hotelId" component={HotelPage} /><Route path="/room/:roomId" component={RoomPage} /><Route path="/trips" component={TripsPage} /><Route path="/profile" component={() => <ProfileRoute user={user} />} /><Route path="/booking/:bookingId" component={BookingPage} /><Route component={NotFound} /></Switch></Shell>;
 }
 
+function AuthLoadingState() {
+  const [timedOut, setTimedOut] = useState(false);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setTimedOut(true), 8000);
+    return () => window.clearTimeout(timer);
+  }, []);
+
+  if (timedOut) {
+    return (
+      <div className="not-found">
+        <div className="error-state" role="alert" data-testid="status-auth-unavailable">
+          <strong>Secure sign-in isn’t ready yet.</strong>
+          <p>We couldn’t finish connecting to your account. Please try again in a moment.</p>
+          <button className="btn btn-quiet" type="button" onClick={() => window.location.reload()} data-testid="button-retry-auth">Try again</button>
+        </div>
+      </div>
+    );
+  }
+
+  return <div className="not-found"><div><div className="skeleton" style={{ width: 220, height: 12, margin: '0 auto 14px' }} /><p className="subcopy" data-testid="status-auth-loading">Checking your account…</p></div></div>;
+}
+
 function Router() {
   const { isLoaded, isSignedIn } = useAuth();
   const { user } = useUser();
   const appUser = toAppUser(user);
-  if (!isLoaded) return <div className="not-found"><div><div className="skeleton" style={{ width: 220, height: 12, margin: '0 auto 14px' }} /><p className="subcopy" data-testid="status-auth-loading">Checking your account…</p></div></div>;
+  if (!isLoaded) return <AuthLoadingState />;
 
   return <ErrorBoundary><Switch><Route path="/sign-in/*?" component={SignInPage} /><Route path="/sign-up/*?" component={SignUpPage} />{isSignedIn && appUser ? <Route component={() => <AuthenticatedRouter user={appUser} />} /> : <Route component={SignedOut} />}</Switch></ErrorBoundary>;
 }
