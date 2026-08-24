@@ -1,0 +1,782 @@
+openapi: 3.1.0
+info:
+  # Do not change the title, if the title changes, the import paths will be broken
+  title: Api
+  version: 0.1.0
+  description: API specification
+servers:
+  - url: /api
+    description: Base API path
+tags:
+  - name: health
+    description: Health operations
+  - name: planner
+    description: AI trip planner operations
+  - name: Sync
+    description: Per-user trips and preferences cloud sync.
+paths:
+  /planner/chat:
+    post:
+      operationId: plannerChat
+      tags: [planner]
+      summary: Conversational trip planning turn
+      description: Sends the conversation so far plus the current trip draft; returns the assistant reply, updated draft, and readiness flag.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PlannerChatRequest"
+      responses:
+        "200":
+          description: Assistant reply
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlannerChatResult"
+        "502":
+          description: Upstream AI error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlannerError"
+  /search:
+    post:
+      operationId: searchTrips
+      tags: [planner]
+      summary: Search flight and hotel offers for a trip draft
+      description: Returns live or cached flight+hotel offers from travel APIs; source is "mock" when no API keys are configured (client should use demo data).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SearchRequest"
+      responses:
+        "200":
+          description: Flight and hotel offers
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SearchResult"
+        "502":
+          description: Upstream travel API error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlannerError"
+  /hotels/{hotelId}/detail:
+    get:
+      operationId: getHotelDetail
+      tags: [planner]
+      summary: Extra hotel content for the detail screen — photos, room types, guest reviews.
+      description: Lazily fetched only when a traveler opens a hotel's detail screen (not part of /search). Best-effort — fields are empty arrays when the supplier has nothing to show, never an error for missing content.
+      parameters:
+        - name: hotelId
+          in: path
+          required: true
+          description: The hotel's bookingRef from HotelOffer.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Hotel photos, room types, and guest reviews.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HotelDetail"
+  /bookings:
+    post:
+      operationId: createBooking
+      summary: Create a booking and submit it to the travel provider.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateBookingRequest"
+      responses:
+        "200":
+          description: Booking created and submitted to the travel provider.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BookingSession"
+    get:
+      operationId: listBookings
+      summary: List the signed-in traveler's bookings.
+      responses:
+        "200":
+          description: Bookings for the current user.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BookingList"
+  /bookings/{bookingId}:
+    get:
+      operationId: getBooking
+      summary: Get a booking's current status.
+      parameters:
+        - name: bookingId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: token
+          in: query
+          required: false
+          description: Secret access token issued at booking creation. Required unless the caller is the signed-in owner of the booking.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: The booking.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Booking"
+  /healthz:
+    get:
+      operationId: healthCheck
+      tags: [health]
+      summary: Health check
+      description: Returns server health status
+      responses:
+        "200":
+          description: Healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+  /sync:
+    get:
+      tags: [Sync]
+      operationId: getSyncState
+      summary: Get the authenticated user's synced trips and preferences
+      responses:
+        '200':
+          description: Synced state for the user (empty defaults if never synced).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SyncState'
+        '401':
+          description: Not authenticated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+    put:
+      tags: [Sync]
+      operationId: putSyncState
+      summary: Replace the authenticated user's synced trips, saved offers, and preferences
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SyncStateInput'
+      responses:
+        '200':
+          description: State stored; returns the stored state.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SyncState'
+        '401':
+          description: Not authenticated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+components:
+  schemas:
+    PlannerChatMessage:
+      type: object
+      properties:
+        role:
+          type: string
+          enum: [user, assistant]
+        content:
+          type: string
+      required: [role, content]
+    PlannerDraft:
+      type: object
+      properties:
+        origin:
+          type: string
+        destinationCode:
+          type: string
+        destinationName:
+          type: string
+        destinationCountry:
+          type: string
+          description: Best-guess country the destination city is in — used to disambiguate same-named cities worldwide (e.g. Cairo, Egypt vs Cairo, GA, USA) when resolving the destination with the hotel supplier.
+        departureDate:
+          type: string
+        returnDate:
+          type: string
+        oneWay:
+          type: boolean
+          description: True when the traveller explicitly asked for a one-way flight (no return). Defaults to false (round-trip).
+        nights:
+          type: number
+        adults:
+          type: number
+        children:
+          type: number
+        budget:
+          type: number
+        currency:
+          type: string
+        styles:
+          type: array
+          items:
+            type: string
+        notes:
+          type: string
+      required: [origin, adults, children, currency, styles]
+    PlannerChatRequest:
+      type: object
+      properties:
+        messages:
+          type: array
+          items:
+            $ref: "#/components/schemas/PlannerChatMessage"
+        draft:
+          $ref: "#/components/schemas/PlannerDraft"
+        mode:
+          type: string
+          enum: [flights, hotels, packages, general]
+          description: Which category this conversation is scoped to. "flights"/"hotels" narrow the assistant's questions and the resulting search to that one category only, with no package assembled. "packages" (the default trip planner) and "general" behave identically — a full flight+hotel+package conversation.
+      required: [messages, draft]
+    PlannerChatResult:
+      type: object
+      properties:
+        reply:
+          type: string
+        quickReplies:
+          type: array
+          items:
+            type: string
+        draft:
+          $ref: "#/components/schemas/PlannerDraft"
+        readyToSearch:
+          type: boolean
+        source:
+          type: string
+          enum: [ai, demo]
+      required: [reply, quickReplies, draft, readyToSearch, source]
+    SearchRequest:
+      type: object
+      properties:
+        draft:
+          $ref: "#/components/schemas/PlannerDraft"
+        category:
+          type: string
+          enum: [flights, hotels, all]
+          description: Limit the search to one offer category so the client can stream flights and hotels independently. Defaults to all.
+      required: [draft]
+    SearchResult:
+      type: object
+      properties:
+        flights:
+          type: array
+          items:
+            $ref: "#/components/schemas/FlightOffer"
+        hotels:
+          type: array
+          items:
+            $ref: "#/components/schemas/HotelOffer"
+        source:
+          type: string
+          enum: [live, cached, mock]
+      required: [flights, hotels, source]
+    FlightSegment:
+      type: object
+      properties:
+        departureAirport:
+          type: string
+        arrivalAirport:
+          type: string
+        departureTime:
+          type: string
+        arrivalTime:
+          type: string
+        airlineCode:
+          type: string
+        airlineName:
+          type: string
+        flightNumber:
+          type: string
+        durationMinutes:
+          type: number
+      required: [departureAirport, arrivalAirport, departureTime, arrivalTime, airlineCode, airlineName, flightNumber, durationMinutes]
+    FlightItinerary:
+      type: object
+      properties:
+        durationMinutes:
+          type: number
+        segments:
+          type: array
+          items:
+            $ref: "#/components/schemas/FlightSegment"
+      required: [durationMinutes, segments]
+    FlightBaggage:
+      type: object
+      properties:
+        cabin:
+          type: string
+        checked:
+          type: string
+        unknown:
+          type: boolean
+      required: [unknown]
+    FlightOffer:
+      type: object
+      properties:
+        id:
+          type: string
+        provider:
+          type: string
+        sourceType:
+          type: string
+          enum: [live, cached, estimated, mock]
+        bookingUrl:
+          type: string
+        totalPrice:
+          type: number
+        currency:
+          type: string
+        pricePerTraveller:
+          type: number
+        validatingAirline:
+          type: string
+        cabinClass:
+          type: string
+          enum: [economy, premium_economy, business, first]
+        outbound:
+          $ref: "#/components/schemas/FlightItinerary"
+        inbound:
+          $ref: "#/components/schemas/FlightItinerary"
+        totalDurationMinutes:
+          type: number
+        totalStops:
+          type: number
+        baggage:
+          $ref: "#/components/schemas/FlightBaggage"
+        refundable:
+          type: boolean
+        changeable:
+          type: boolean
+        fareRulesSummary:
+          type: string
+        bookingRef:
+          type: string
+          description: Opaque provider fare reference required to book this offer.
+        lastUpdatedAt:
+          type: string
+      required: [id, provider, sourceType, totalPrice, currency, pricePerTraveller, validatingAirline, cabinClass, outbound, totalDurationMinutes, totalStops, baggage, lastUpdatedAt]
+    HotelOffer:
+      type: object
+      properties:
+        id:
+          type: string
+        provider:
+          type: string
+        sourceType:
+          type: string
+          enum: [live, cached, estimated, mock]
+        bookingUrl:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        starRating:
+          type: number
+        guestRating:
+          type: number
+        reviewCount:
+          type: number
+        address:
+          type: string
+        latitude:
+          type: number
+        longitude:
+          type: number
+        images:
+          type: array
+          items:
+            type: string
+        amenities:
+          type: array
+          items:
+            type: string
+        roomName:
+          type: string
+        mealPlan:
+          type: string
+        roomOptions:
+          type: array
+          description: Available room and rate choices returned with the live hotel search.
+          items:
+            $ref: "#/components/schemas/HotelRoomOption"
+        nightlyPrice:
+          type: number
+        totalPrice:
+          type: number
+        taxesAndFees:
+          type: number
+        currency:
+          type: string
+        refundable:
+          type: boolean
+        cancellationSummary:
+          type: string
+        distanceFromCenterKm:
+          type: number
+        checkInTime:
+          type: string
+        checkOutTime:
+          type: string
+        bookingRef:
+          type: string
+          description: Opaque provider hotel reference required to book this offer.
+        lastUpdatedAt:
+          type: string
+      required: [id, provider, sourceType, name, starRating, guestRating, reviewCount, address, latitude, longitude, images, amenities, nightlyPrice, totalPrice, currency, lastUpdatedAt]
+    HotelRoomType:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        photos:
+          type: array
+          items:
+            type: string
+        maxOccupancy:
+          type: number
+      required: [id, name, photos]
+    HotelRoomOption:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        mealPlan:
+          type: string
+        roomSizeSquare:
+          type: number
+        roomSizeUnit:
+          type: string
+        bedTypes:
+          type: array
+          items:
+            type: string
+        maxOccupancy:
+          type: number
+        amenities:
+          type: array
+          items:
+            type: string
+        totalPrice:
+          type: number
+        currency:
+          type: string
+        images:
+          type: array
+          items:
+            type: string
+        refundable:
+          type: boolean
+      required: [id, name, totalPrice, currency]
+    HotelReview:
+      type: object
+      properties:
+        name:
+          type: string
+        country:
+          type: string
+        averageScore:
+          type: number
+        headline:
+          type: string
+        pros:
+          type: string
+        cons:
+          type: string
+        date:
+          type: string
+      required: [name, country, averageScore, date]
+    HotelSentimentCategory:
+      type: object
+      properties:
+        name:
+          type: string
+        rating:
+          type: number
+        description:
+          type: string
+      required: [name, rating, description]
+    HotelSentiment:
+      type: object
+      properties:
+        categories:
+          type: array
+          items:
+            $ref: "#/components/schemas/HotelSentimentCategory"
+        pros:
+          type: array
+          items:
+            type: string
+        cons:
+          type: array
+          items:
+            type: string
+      required: [categories, pros, cons]
+    HotelDetail:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        address:
+          type: string
+        city:
+          type: string
+        country:
+          type: string
+        latitude:
+          type: number
+        longitude:
+          type: number
+        starRating:
+          type: number
+        rating:
+          type: number
+        reviewCount:
+          type: number
+        checkinTime:
+          type: string
+        checkoutTime:
+          type: string
+        importantInformation:
+          type: string
+        facilities:
+          type: array
+          items:
+            type: string
+        cancellation:
+          $ref: "#/components/schemas/HotelCancellation"
+        images:
+          type: array
+          items:
+            $ref: "#/components/schemas/HotelImage"
+        rooms:
+          type: array
+          items:
+            $ref: "#/components/schemas/HotelRoomType"
+        reviews:
+          type: array
+          items:
+            $ref: "#/components/schemas/HotelReview"
+        sentiment:
+          $ref: "#/components/schemas/HotelSentiment"
+      required: [images, rooms, reviews]
+    HotelImage:
+      type: object
+      properties:
+        url:
+          type: string
+        caption:
+          type: string
+        order:
+          type: number
+      required: [url, order]
+    HotelCancellation:
+      type: object
+      properties:
+        refundable:
+          type: boolean
+        deadline:
+          type: string
+        amount:
+          type: number
+        currency:
+          type: string
+      required: [refundable]
+    Traveler:
+      type: object
+      properties:
+        firstName:
+          type: string
+        lastName:
+          type: string
+        type:
+          type: string
+          enum: [adult, child]
+      required: [firstName, lastName, type]
+    CreateBookingRequest:
+      type: object
+      properties:
+        draft:
+          $ref: "#/components/schemas/PlannerDraft"
+        flight:
+          $ref: "#/components/schemas/FlightOffer"
+        hotel:
+          $ref: "#/components/schemas/HotelOffer"
+        travelers:
+          type: array
+          items:
+            $ref: "#/components/schemas/Traveler"
+          minItems: 1
+        contactEmail:
+          type: string
+      required: [draft, travelers, contactEmail]
+    BookingSession:
+      type: object
+      properties:
+        bookingId:
+          type: string
+        accessToken:
+          type: string
+        status:
+          $ref: "#/components/schemas/BookingStatus"
+      required: [bookingId, accessToken, status]
+    BookingStatus:
+      type: string
+      enum: [paid, booked, booking_failed, cancelled]
+    Booking:
+      type: object
+      properties:
+        id:
+          type: string
+        status:
+          $ref: "#/components/schemas/BookingStatus"
+        amountCents:
+          type: number
+        currency:
+          type: string
+        contactEmail:
+          type: string
+        destinationName:
+          type: string
+        departureDate:
+          type: string
+        returnDate:
+          type: string
+        flightConfirmed:
+          type: boolean
+        hotelConfirmed:
+          type: boolean
+        flightReference:
+          type: string
+        hotelReference:
+          type: string
+        errorMessage:
+          type: string
+        createdAt:
+          type: string
+      required: [id, status, amountCents, currency, contactEmail, createdAt]
+    BookingList:
+      type: object
+      properties:
+        bookings:
+          type: array
+          items:
+            $ref: "#/components/schemas/Booking"
+      required: [bookings]
+    PlannerError:
+      type: object
+      properties:
+        message:
+          type: string
+      required: [message]
+    HealthStatus:
+      type: object
+      properties:
+        status:
+          type: string
+      required:
+        - status
+    ErrorEnvelope:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+    SyncTrip:
+      type: object
+      description: A trip object as stored by the mobile app (opaque to the server aside from id/updatedAt).
+      required: [id, updatedAt]
+      properties:
+        id:
+          type: string
+          minLength: 1
+        updatedAt:
+          type: string
+      additionalProperties: true
+    SyncPreferences:
+      type: object
+      description: User profile preferences synced across devices.
+      additionalProperties: true
+    SavedOffer:
+      type: object
+      description: A flight, hotel, or package offer saved by the traveler.
+      required: [id, type, offer]
+      properties:
+        id:
+          type: string
+          minLength: 1
+        type:
+          type: string
+          enum: [flight, hotel, package]
+        offer:
+          type: object
+          additionalProperties: true
+        savedAt:
+          type: string
+      additionalProperties: true
+    SyncStateInput:
+      type: object
+      required: [trips]
+      properties:
+        trips:
+          type: array
+          items:
+            $ref: '#/components/schemas/SyncTrip'
+        preferences:
+          oneOf:
+            - $ref: '#/components/schemas/SyncPreferences'
+            - type: 'null'
+        savedOffers:
+          type: array
+          items:
+            $ref: '#/components/schemas/SavedOffer'
+    SyncState:
+      type: object
+      required: [trips, savedOffers, preferences, updatedAt]
+      properties:
+        trips:
+          type: array
+          items:
+            $ref: '#/components/schemas/SyncTrip'
+        preferences:
+          oneOf:
+            - $ref: '#/components/schemas/SyncPreferences'
+            - type: 'null'
+        savedOffers:
+          type: array
+          items:
+            $ref: '#/components/schemas/SavedOffer'
+        updatedAt:
+          type: [string, 'null']

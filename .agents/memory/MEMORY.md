@@ -1,0 +1,4 @@
+- [Payment architecture](payment-architecture.md) — Stripe was intentionally removed; supplier bookings use LiteAPI account-wallet settlement and no in-app payment processor.
+- [Visual direction](visual-direction.md) — Safferni is white-led with blue accents and uses the supplied symbol as its primary brand mark.
+- [Web artifact bootstrap](web-artifact-bootstrap.md) — Optional Vite plugins must resolve from the workspace catalog or they block installation.
+- [Sync state compatibility](sync-state-compatibility.md) — Extend cross-device sync with top-level fields and preserve values omitted by older clients.

@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/safferni-web/"
+title = "Safferni Web"
+description = "A responsive browser experience for planning and managing luxurious travel with Safferni."
+version = "1.0.0"
+id = "artifacts/safferni-web"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/safferni-web/" ]
+localPort = 23991
+
+[services.development]
+run = "pnpm --filter @workspace/safferni-web run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/safferni-web", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/safferni-web/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "23991"
+BASE_PATH = "/safferni-web/"

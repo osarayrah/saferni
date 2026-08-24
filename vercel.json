@@ -1,0 +1,20 @@
+{
+  "buildCommand": "pnpm --filter @workspace/safferni-web run build",
+  "outputDirectory": "artifacts/safferni-web/dist/public",
+  "installCommand": "pnpm install --frozen-lockfile",
+  "env": {
+    "BASE_PATH": "/",
+    "PORT": "23991"
+  },
+  "rewrites": [
+    {
+      "source": "/((?!api(?:/|$)).*)",
+      "destination": "/index.html"
+    }
+  ],
+  "functions": {
+    "api/[...path].ts": {
+      "maxDuration": 60
+    }
+  }
+}
