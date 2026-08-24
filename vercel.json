@@ -13,6 +13,10 @@
       "destination": "/api/healthz?__clerk_path=/:clerkPath*"
     },
     {
+      "source": "/api/:apiPath*",
+      "destination": "/api/healthz?__api_path=/:apiPath*"
+    },
+    {
       "source": "/((?!api(?:/|$)).*)",
       "destination": "/index.html"
     }
