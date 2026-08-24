@@ -4,9 +4,14 @@
   "installCommand": "pnpm install --frozen-lockfile",
   "env": {
     "BASE_PATH": "/",
-    "PORT": "23991"
+    "PORT": "23991",
+    "VITE_CLERK_PROXY_URL": "https://safferni.site/api/__clerk"
   },
   "rewrites": [
+    {
+      "source": "/api/__clerk/:clerkPath*",
+      "destination": "/api/healthz?__clerk_path=/:clerkPath*"
+    },
     {
       "source": "/((?!api(?:/|$)).*)",
       "destination": "/index.html"

@@ -5,6 +5,18 @@ let appModulePromise;
 
 export default async function handler(req, res) {
   try {
+    const requestUrl = new URL(req.url || "/", "https://safferni.internal");
+    const clerkPath = requestUrl.searchParams.get("__clerk_path");
+
+    // Vercel's generated catch-all handles one API segment reliably, but
+    // Clerk's Frontend API uses nested paths. vercel.json rewrites those
+    // nested requests through /api/healthz and carries the original path here.
+    if (clerkPath) {
+      requestUrl.searchParams.delete("__clerk_path");
+      const query = requestUrl.searchParams.toString();
+      req.url = `/api/__clerk/${clerkPath.replace(/^\/+/, "")}${query ? `?${query}` : ""}`;
+    }
+
     appModulePromise ??= import("../artifacts/api-server/dist/vercel.mjs");
     const { default: app } = await appModulePromise;
     return app(req, res);
