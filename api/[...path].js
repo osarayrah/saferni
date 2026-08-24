@@ -1,7 +1,6 @@
 // Vercel's catch-all function keeps the API on the same origin as the web app.
-// Use a JavaScript wrapper so Vercel bundles the API source without applying
-// its NodeNext TypeScript checker to the workspace's bundler-style imports.
-import "../artifacts/api-server/src/lib/loadEnv.ts";
-import app from "../artifacts/api-server/src/app.ts";
+// Import the API's esbuild output so Vercel does not re-typecheck its
+// bundler-style TypeScript source with NodeNext module rules.
+import app from "../artifacts/api-server/dist/vercel.mjs";
 
 export default app;

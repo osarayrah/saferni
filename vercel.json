@@ -1,5 +1,5 @@
 {
-  "buildCommand": "pnpm --filter @workspace/safferni-web run build",
+  "buildCommand": "pnpm --filter @workspace/api-server run build && pnpm --filter @workspace/safferni-web run build",
   "outputDirectory": "artifacts/safferni-web/dist/public",
   "installCommand": "pnpm install --frozen-lockfile",
   "env": {
@@ -14,7 +14,8 @@
   ],
   "functions": {
     "api/[...path].js": {
-      "maxDuration": 60
+      "maxDuration": 60,
+      "includeFiles": "artifacts/api-server/dist/**"
     }
   }
 }
