@@ -516,16 +516,30 @@ type Draft = ReturnType<typeof SearchTripsBody.parse>["draft"];
 
 function withDates(draft: Draft): Draft & { departureDate: string; returnDate: string; nights: number } {
   const nights = draft.nights ?? 5;
-  if (draft.departureDate && draft.returnDate) return { ...draft, nights, departureDate: draft.departureDate, returnDate: draft.returnDate };
-  const dep = new Date();
-  dep.setDate(dep.getDate() + 21);
+  const datePattern = /^\d{4}-\d{2}-\d{2}$/;
+  // The planner deliberately keeps unknown dates as empty strings while a
+  // traveller is still describing a trip. Empty strings must be treated as
+  // absent here — passing them to LiteAPI causes a 400 and leaves the results
+  // screen empty even though a useful flexible-date search is possible.
+  const departureDate = typeof draft.departureDate === "string" && datePattern.test(draft.departureDate)
+    ? draft.departureDate
+    : undefined;
+  const returnDate = typeof draft.returnDate === "string" && datePattern.test(draft.returnDate)
+    ? draft.returnDate
+    : undefined;
+
+  if (departureDate && returnDate) return { ...draft, nights, departureDate, returnDate };
+  const dep = departureDate
+    ? new Date(`${departureDate}T12:00:00Z`)
+    : new Date();
+  if (!departureDate) dep.setDate(dep.getDate() + 21);
   const ret = new Date(dep);
   ret.setDate(ret.getDate() + nights);
   return {
     ...draft,
     nights,
-    departureDate: draft.departureDate ?? dep.toISOString().slice(0, 10),
-    returnDate: draft.returnDate ?? ret.toISOString().slice(0, 10),
+    departureDate: departureDate ?? dep.toISOString().slice(0, 10),
+    returnDate: returnDate ?? ret.toISOString().slice(0, 10),
   };
 }
 
