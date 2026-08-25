@@ -3,8 +3,32 @@ import "./lib/loadEnv";
 import app from "./app";
 import { logger } from "./lib/logger";
 import { startOutboxProcessor } from "./lib/bookingOutbox";
+import { runMigrations } from "stripe-replit-sync";
+import { getStripeSync } from "./lib/stripeClient";
+import { startPaymentRecoveryProcessor } from "./lib/paymentRecovery";
 
+async function initializeStripe(): Promise<void> {
+  const databaseUrl = process.env.DATABASE_URL;
+  if (!databaseUrl) throw new Error("DATABASE_URL is required for Stripe.");
+  await runMigrations({ databaseUrl });
+  const sync = await getStripeSync();
+  const domain = process.env.REPLIT_DOMAINS?.split(",")[0];
+  if (!domain) throw new Error("REPLIT_DOMAINS is required to configure Stripe webhooks.");
+  await sync.findOrCreateManagedWebhook(`https://${domain}/api/stripe/webhook`);
+  await sync.syncBackfill();
+}
+
+if (process.env.NODE_ENV !== "test") {
+  try {
+    await initializeStripe();
+  } catch (err) {
+    // Keep search and itinerary features available, but fail closed for
+    // bookings until Stripe's server credential is available.
+    logger.error({ err }, "Stripe unavailable; customer booking checkout is disabled");
+  }
+}
 startOutboxProcessor();
+startPaymentRecoveryProcessor();
 
 const rawPort = process.env["PORT"];
 

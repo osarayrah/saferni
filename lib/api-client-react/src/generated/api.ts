@@ -23,6 +23,7 @@ import type {
   Booking,
   BookingList,
   BookingSession,
+  ConfirmBookingPaymentRequest,
   CreateBookingRequest,
   ErrorEnvelope,
   GetBookingParams,
@@ -295,7 +296,7 @@ export const getCreateBookingUrl = () => {
 }
 
 /**
- * @summary Create a booking and submit it to the travel provider.
+ * @summary Create a pending booking and a secure customer-payment checkout.
  */
 export const createBooking = async (createBookingRequest: CreateBookingRequest, options?: Parameters<typeof customFetch>[1]): Promise<BookingSession> => {
 
@@ -344,7 +345,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type CreateBookingMutationError = ErrorType<unknown>
 
     /**
- * @summary Create a booking and submit it to the travel provider.
+ * @summary Create a pending booking and a secure customer-payment checkout.
  */
 export const useCreateBooking = <TError = ErrorType<unknown>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createBooking>>, TError,{data: BodyType<CreateBookingRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
@@ -433,6 +434,78 @@ export function useListBookings<TData = Awaited<ReturnType<typeof listBookings>>
 
 
 
+
+export const getConfirmBookingPaymentUrl = (bookingId: string,) => {
+
+
+
+
+  return `/api/bookings/${bookingId}/confirm-payment`
+}
+
+/**
+ * @summary Verify the completed customer payment and confirm the supplier booking.
+ */
+export const confirmBookingPayment = async (bookingId: string,
+    confirmBookingPaymentRequest?: ConfirmBookingPaymentRequest, options?: Parameters<typeof customFetch>[1]): Promise<Booking> => {
+
+  return customFetch<Booking>(getConfirmBookingPaymentUrl(bookingId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(confirmBookingPaymentRequest)
+  }
+);}
+
+
+
+
+
+export const getConfirmBookingPaymentMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof confirmBookingPayment>>, TError,{bookingId: string;data?: BodyType<ConfirmBookingPaymentRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof confirmBookingPayment>>, TError,{bookingId: string;data?: BodyType<ConfirmBookingPaymentRequest>}, TContext> => {
+
+const mutationKey = ['confirmBookingPayment'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof confirmBookingPayment>>, {bookingId: string;data?: BodyType<ConfirmBookingPaymentRequest>}> = (props) => {
+          const {bookingId,data} = props ?? {};
+
+          return  confirmBookingPayment(bookingId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ConfirmBookingPaymentMutationResult = NonNullable<Awaited<ReturnType<typeof confirmBookingPayment>>>
+    export type ConfirmBookingPaymentMutationBody = BodyType<ConfirmBookingPaymentRequest> | undefined
+    export type ConfirmBookingPaymentMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Verify the completed customer payment and confirm the supplier booking.
+ */
+export const useConfirmBookingPayment = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof confirmBookingPayment>>, TError,{bookingId: string;data?: BodyType<ConfirmBookingPaymentRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof confirmBookingPayment>>,
+        TError,
+        {bookingId: string;data?: BodyType<ConfirmBookingPaymentRequest>},
+        TContext
+      > => {
+      return useMutation(getConfirmBookingPaymentMutationOptions(options));
+    }
 
 export const getGetBookingUrl = (bookingId: string,
     params?: GetBookingParams,) => {

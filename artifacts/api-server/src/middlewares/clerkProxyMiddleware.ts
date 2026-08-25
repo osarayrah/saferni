@@ -26,6 +26,19 @@ import { createProxyMiddleware } from 'http-proxy-middleware';
 const CLERK_FAPI = 'https://frontend-api.clerk.dev';
 export const CLERK_PROXY_PATH = '/api/__clerk';
 
+/** Production must never silently fall back to direct Clerk requests. */
+export function assertProductionClerkConfiguration(): void {
+  if (process.env.NODE_ENV !== 'production') return;
+  const missing = ['CLERK_SECRET_KEY', 'CLERK_PUBLISHABLE_KEY'].filter(
+    (name) => !process.env[name]?.trim(),
+  );
+  if (missing.length) {
+    throw new Error(
+      `Missing required production Clerk configuration: ${missing.join(', ')}`,
+    );
+  }
+}
+
 /**
  * Returns the first effective public hostname for the given request,
  * preferring x-forwarded-host over the Host header so callers behind a
@@ -53,6 +66,7 @@ export function getClerkProxyHost(req: {
 }
 
 export function clerkProxyMiddleware(): RequestHandler {
+  assertProductionClerkConfiguration();
   // Only run proxy in production — Clerk proxying doesn't work for dev instances
   if (process.env.NODE_ENV !== 'production') {
     return (_req, _res, next) => next();

@@ -10,6 +10,7 @@ export * from './booking';
 export * from './bookingList';
 export * from './bookingSession';
 export * from './bookingStatus';
+export * from './confirmBookingPaymentRequest';
 export * from './createBookingRequest';
 export * from './errorEnvelope';
 export * from './flightBaggage';

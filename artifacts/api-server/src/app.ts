@@ -5,6 +5,7 @@ import { clerkMiddleware } from "@clerk/express";
 import { publishableKeyFromHost } from "@clerk/shared/keys";
 import router from "./routes";
 import { logger } from "./lib/logger";
+import { processStripeWebhook } from "./lib/stripeWebhook";
 import {
   CLERK_PROXY_PATH,
   clerkProxyMiddleware,
@@ -12,6 +13,22 @@ import {
 } from "./middlewares/clerkProxyMiddleware";
 
 const app: Express = express();
+
+// Stripe verifies the original bytes. This must precede every JSON body parser.
+app.post("/api/stripe/webhook", express.raw({ type: "application/json" }), async (req, res) => {
+  const signature = req.headers["stripe-signature"];
+  if (!signature || Array.isArray(signature)) {
+    res.status(400).json({ error: "Missing stripe-signature" });
+    return;
+  }
+  try {
+    await processStripeWebhook(req.body as Buffer, signature);
+    res.status(200).json({ received: true });
+  } catch (err) {
+    logger.error({ err }, "Stripe webhook failed");
+    res.status(400).json({ error: "Webhook processing error" });
+  }
+});
 
 app.use(
   pinoHttp({

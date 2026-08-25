@@ -17,4 +17,6 @@ export interface CreateBookingRequest {
   /** @minItems 1 */
   travelers: Traveler[];
   contactEmail: string;
+  /** Web return URL after hosted payment checkout. */
+  returnUrl?: string;
 }

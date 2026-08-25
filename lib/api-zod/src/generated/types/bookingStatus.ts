@@ -10,8 +10,15 @@ export type BookingStatus = typeof BookingStatus[keyof typeof BookingStatus];
 
 
 export const BookingStatus = {
+  payment_pending: 'payment_pending',
+  payment_failed: 'payment_failed',
+  payment_expired: 'payment_expired',
   paid: 'paid',
+  fulfillment_processing: 'fulfillment_processing',
   booked: 'booked',
   booking_failed: 'booking_failed',
+  refund_pending: 'refund_pending',
+  refunded: 'refunded',
+  refund_failed: 'refund_failed',
   cancelled: 'cancelled',
 } as const;

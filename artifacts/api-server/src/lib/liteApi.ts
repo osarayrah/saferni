@@ -14,8 +14,16 @@
 type Rec = Record<string, unknown>;
 const rec = (v: unknown): Rec => (v && typeof v === "object" && !Array.isArray(v) ? (v as Rec) : {});
 
+// Sandbox is the only permitted supplier environment for now. In tests we
+// still allow the ordinary key because the network client is mocked there.
+function activeLiteApiKey(): string | undefined {
+  return process.env.NODE_ENV === "test"
+    ? process.env.LITEAPI_KEY
+    : process.env.LITEAPI_KEY_SANDBOX;
+}
+
 export function liteApiConfigured(): boolean {
-  return Boolean(process.env.LITEAPI_KEY);
+  return Boolean(activeLiteApiKey());
 }
 
 function dataBaseUrl(): string {
@@ -62,7 +70,7 @@ async function request(url: string, init: RequestInit): Promise<Rec> {
   const res = await _fetch(url, {
     ...init,
     headers: {
-      "X-API-Key": process.env.LITEAPI_KEY ?? "",
+      "X-API-Key": activeLiteApiKey() ?? "",
       Accept: "application/json",
       ...(init.body ? { "Content-Type": "application/json" } : {}),
       ...init.headers,

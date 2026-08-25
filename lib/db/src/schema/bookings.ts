@@ -7,8 +7,9 @@ import { usersTable } from "./auth";
  * the booking request is accepted.
  *
  * status lifecycle:
- *   paid -> booked
- *       \-> booking_failed (supplier failed — needs attention)
+ *   payment_pending -> paid -> booked
+ *                      \-> refunded (supplier rejected after settlement)
+ *   payment_pending -> payment_failed | payment_expired
  *   cancelled
  */
 export const bookingsTable = pgTable("bookings", {
@@ -16,7 +17,7 @@ export const bookingsTable = pgTable("bookings", {
     .primaryKey()
     .default(sql`gen_random_uuid()`),
   userId: varchar("user_id").references(() => usersTable.id, { onDelete: "set null" }),
-  status: varchar("status").notNull().default("paid"),
+  status: varchar("status").notNull().default("payment_pending"),
   // Snapshot of what is being booked (draft summary, flight offer, hotel offer, travelers).
   details: jsonb("details").notNull(),
   amountCents: integer("amount_cents").notNull(),

@@ -316,15 +316,29 @@ export interface CreateBookingRequest {
   /** @minItems 1 */
   travelers: Traveler[];
   contactEmail: string;
+  /** Web return URL after hosted payment checkout. */
+  returnUrl?: string;
+}
+
+export interface ConfirmBookingPaymentRequest {
+  /** Secret access token required for guest bookings. */
+  token?: string;
 }
 
 export type BookingStatus = typeof BookingStatus[keyof typeof BookingStatus];
 
 
 export const BookingStatus = {
+  payment_pending: 'payment_pending',
+  payment_failed: 'payment_failed',
+  payment_expired: 'payment_expired',
   paid: 'paid',
+  fulfillment_processing: 'fulfillment_processing',
   booked: 'booked',
   booking_failed: 'booking_failed',
+  refund_pending: 'refund_pending',
+  refunded: 'refunded',
+  refund_failed: 'refund_failed',
   cancelled: 'cancelled',
 } as const;
 
@@ -332,6 +346,8 @@ export interface BookingSession {
   bookingId: string;
   accessToken: string;
   status: BookingStatus;
+  /** Secure hosted checkout URL where the traveler authorizes payment. */
+  checkoutUrl: string;
 }
 
 export interface Booking {

@@ -833,11 +833,19 @@ function mapHotelImages(raw: unknown): HotelDetail["images"] {
   return arr(raw)
     .map((p, index) => {
       const image = rec(p);
-      const url = str(image.url, image.imageUrl, image.originalUrl, image.src, image.path);
+      const url = str(p, image.url, image.imageUrl, image.originalUrl, image.src, image.path);
       return url ? { url, ...(str(image.caption) ? { caption: str(image.caption) } : {}), order: num(image.order) ?? index } : null;
     })
     .filter((image): image is NonNullable<typeof image> => image !== null)
     .sort((a, b) => a.order - b.order);
+}
+
+function firstPopulatedArray(value: Rec, keys: string[]): unknown[] {
+  for (const key of keys) {
+    const candidate = arr(value[key]);
+    if (candidate.length) return candidate;
+  }
+  return [];
 }
 
 function mapRoomTypes(raw: unknown): HotelDetail["rooms"] {
@@ -938,7 +946,9 @@ function mapReviews(raw: unknown): HotelDetail["reviews"] {
 }
 
 router.get("/hotels/:hotelId/detail", async (req, res) => {
-  const hotelId = req.params.hotelId;
+  // Search offers are intentionally namespaced for the client (`la_ht_...`),
+  // while LiteAPI detail and review endpoints require the raw supplier ID.
+  const hotelId = req.params.hotelId.replace(/^la_ht_/, "");
   const hit = hotelDetailCache.get(hotelId);
   if (hit && Date.now() - hit.at < HOTEL_DETAIL_CACHE_TTL_MS) {
     res.json(hit.detail);
@@ -970,6 +980,10 @@ router.get("/hotels/:hotelId/detail", async (req, res) => {
   const checkinCheckoutTimes = rec(hotelData.checkinCheckoutTimes);
   const sentiment = mapSentiment(hotelData.sentiment_analysis);
   const cancellation = mapCancellation(hotelData);
+  const detailImageSources = [
+    ...(str(hotelData.main_photo, hotelData.mainPhoto) ? [str(hotelData.main_photo, hotelData.mainPhoto)!] : []),
+    ...firstPopulatedArray(hotelData, ["hotelImages", "images", "photos"]),
+  ];
   const importantInformation = [
     cleanSupplierText(hotelData.hotelImportantInformation),
     ...arr(hotelData.hotelImportantInformation).map((item) => cleanSupplierText(item)).filter((item): item is string => Boolean(item)),
@@ -982,9 +996,9 @@ router.get("/hotels/:hotelId/detail", async (req, res) => {
     ...(str(hotelData.country, location.country) ? { country: str(hotelData.country, location.country) } : {}),
     ...(num(location.latitude, hotelData.latitude) !== undefined ? { latitude: num(location.latitude, hotelData.latitude) } : {}),
     ...(num(location.longitude, hotelData.longitude) !== undefined ? { longitude: num(location.longitude, hotelData.longitude) } : {}),
-    ...(num(hotelData.starRating) !== undefined ? { starRating: num(hotelData.starRating) } : {}),
-    ...(num(hotelData.rating) !== undefined ? { rating: num(hotelData.rating) } : {}),
-    ...(num(hotelData.reviewCount) !== undefined ? { reviewCount: num(hotelData.reviewCount) } : {}),
+    ...(num(hotelData.starRating, hotelData.stars) !== undefined ? { starRating: num(hotelData.starRating, hotelData.stars) } : {}),
+    ...(num(hotelData.rating, hotelData.guestRating) !== undefined ? { rating: num(hotelData.rating, hotelData.guestRating) } : {}),
+    ...(num(hotelData.reviewCount, hotelData.reviewsCount) !== undefined ? { reviewCount: num(hotelData.reviewCount, hotelData.reviewsCount) } : {}),
     ...(str(checkinCheckoutTimes.checkin) ? { checkinTime: str(checkinCheckoutTimes.checkin) } : {}),
     ...(str(checkinCheckoutTimes.checkout) ? { checkoutTime: str(checkinCheckoutTimes.checkout) } : {}),
     ...(importantInformation ? { importantInformation } : {}),
@@ -992,9 +1006,9 @@ router.get("/hotels/:hotelId/detail", async (req, res) => {
       ? { facilities: mapFacilities(hotelData.facilities ?? hotelData.hotelFacilities) }
       : {}),
     ...(cancellation ? { cancellation } : {}),
-    images: mapHotelImages(hotelData.hotelImages),
-    rooms: mapRoomTypes(hotelData.rooms),
-    reviews: mapReviews(reviewsData.data),
+    images: mapHotelImages(detailImageSources),
+    rooms: mapRoomTypes(firstPopulatedArray(hotelData, ["rooms", "roomTypes"])),
+    reviews: mapReviews(firstPopulatedArray(reviewsData, ["data", "reviews", "items"])),
     ...(sentiment ? { sentiment } : {}),
   };
   hotelDetailCache.set(hotelId, { at: Date.now(), detail });

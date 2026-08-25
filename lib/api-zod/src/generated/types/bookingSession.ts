@@ -11,4 +11,6 @@ export interface BookingSession {
   bookingId: string;
   accessToken: string;
   status: BookingStatus;
+  /** Secure hosted checkout URL where the traveler authorizes payment. */
+  checkoutUrl: string;
 }

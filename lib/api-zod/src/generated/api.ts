@@ -245,7 +245,7 @@ export const GetHotelDetailResponse = zod.object({
 
 
 /**
- * @summary Create a booking and submit it to the travel provider.
+ * @summary Create a pending booking and a secure customer-payment checkout.
  */
 
 
@@ -365,13 +365,15 @@ export const CreateBookingBody = zod.object({
   "lastName": zod.string(),
   "type": zod.enum(['adult', 'child'])
 })).min(1),
-  "contactEmail": zod.string()
+  "contactEmail": zod.string(),
+  "returnUrl": zod.string().optional().describe('Web return URL after hosted payment checkout.')
 })
 
 export const CreateBookingResponse = zod.object({
   "bookingId": zod.string(),
   "accessToken": zod.string(),
-  "status": zod.enum(['paid', 'booked', 'booking_failed', 'cancelled'])
+  "status": zod.enum(['payment_pending', 'payment_failed', 'payment_expired', 'paid', 'fulfillment_processing', 'booked', 'booking_failed', 'refund_pending', 'refunded', 'refund_failed', 'cancelled']),
+  "checkoutUrl": zod.string().describe('Secure hosted checkout URL where the traveler authorizes payment.')
 })
 
 
@@ -381,7 +383,7 @@ export const CreateBookingResponse = zod.object({
 export const ListBookingsResponse = zod.object({
   "bookings": zod.array(zod.object({
   "id": zod.string(),
-  "status": zod.enum(['paid', 'booked', 'booking_failed', 'cancelled']),
+  "status": zod.enum(['payment_pending', 'payment_failed', 'payment_expired', 'paid', 'fulfillment_processing', 'booked', 'booking_failed', 'refund_pending', 'refunded', 'refund_failed', 'cancelled']),
   "amountCents": zod.number(),
   "currency": zod.string(),
   "contactEmail": zod.string(),
@@ -399,6 +401,35 @@ export const ListBookingsResponse = zod.object({
 
 
 /**
+ * @summary Verify the completed customer payment and confirm the supplier booking.
+ */
+export const ConfirmBookingPaymentParams = zod.object({
+  "bookingId": zod.coerce.string()
+})
+
+export const ConfirmBookingPaymentBody = zod.object({
+  "token": zod.string().optional().describe('Secret access token required for guest bookings.')
+})
+
+export const ConfirmBookingPaymentResponse = zod.object({
+  "id": zod.string(),
+  "status": zod.enum(['payment_pending', 'payment_failed', 'payment_expired', 'paid', 'fulfillment_processing', 'booked', 'booking_failed', 'refund_pending', 'refunded', 'refund_failed', 'cancelled']),
+  "amountCents": zod.number(),
+  "currency": zod.string(),
+  "contactEmail": zod.string(),
+  "destinationName": zod.string().optional(),
+  "departureDate": zod.string().optional(),
+  "returnDate": zod.string().optional(),
+  "flightConfirmed": zod.boolean().optional(),
+  "hotelConfirmed": zod.boolean().optional(),
+  "flightReference": zod.string().optional(),
+  "hotelReference": zod.string().optional(),
+  "errorMessage": zod.string().optional(),
+  "createdAt": zod.string()
+})
+
+
+/**
  * @summary Get a booking's current status.
  */
 export const GetBookingParams = zod.object({
@@ -411,7 +442,7 @@ export const GetBookingQueryParams = zod.object({
 
 export const GetBookingResponse = zod.object({
   "id": zod.string(),
-  "status": zod.enum(['paid', 'booked', 'booking_failed', 'cancelled']),
+  "status": zod.enum(['payment_pending', 'payment_failed', 'payment_expired', 'paid', 'fulfillment_processing', 'booked', 'booking_failed', 'refund_pending', 'refunded', 'refund_failed', 'cancelled']),
   "amountCents": zod.number(),
   "currency": zod.string(),
   "contactEmail": zod.string(),

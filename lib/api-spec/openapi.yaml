@@ -88,7 +88,7 @@ paths:
   /bookings:
     post:
       operationId: createBooking
-      summary: Create a booking and submit it to the travel provider.
+      summary: Create a pending booking and a secure customer-payment checkout.
       requestBody:
         required: true
         content:
@@ -97,7 +97,7 @@ paths:
               $ref: "#/components/schemas/CreateBookingRequest"
       responses:
         "200":
-          description: Booking created and submitted to the travel provider.
+          description: Booking created; send the traveler to checkoutUrl before supplier confirmation.
           content:
             application/json:
               schema:
@@ -112,6 +112,29 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/BookingList"
+  /bookings/{bookingId}/confirm-payment:
+    post:
+      operationId: confirmBookingPayment
+      summary: Verify the completed customer payment and confirm the supplier booking.
+      parameters:
+        - name: bookingId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ConfirmBookingPaymentRequest"
+      responses:
+        "200":
+          description: Updated booking payment and supplier-confirmation state.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Booking"
   /bookings/{bookingId}:
     get:
       operationId: getBooking
@@ -641,7 +664,16 @@ components:
           minItems: 1
         contactEmail:
           type: string
+        returnUrl:
+          type: string
+          description: Web return URL after hosted payment checkout.
       required: [draft, travelers, contactEmail]
+    ConfirmBookingPaymentRequest:
+      type: object
+      properties:
+        token:
+          type: string
+          description: Secret access token required for guest bookings.
     BookingSession:
       type: object
       properties:
@@ -651,10 +683,13 @@ components:
           type: string
         status:
           $ref: "#/components/schemas/BookingStatus"
-      required: [bookingId, accessToken, status]
+        checkoutUrl:
+          type: string
+          description: Secure hosted checkout URL where the traveler authorizes payment.
+      required: [bookingId, accessToken, status, checkoutUrl]
     BookingStatus:
       type: string
-      enum: [paid, booked, booking_failed, cancelled]
+      enum: [payment_pending, payment_failed, payment_expired, paid, fulfillment_processing, booked, booking_failed, refund_pending, refunded, refund_failed, cancelled]
     Booking:
       type: object
       properties:
