@@ -261,12 +261,34 @@ function BookingRow({ booking }: { booking: Booking }) {
 
 function PlannerPage() {
   const [, setLocation] = useLocation();
-  const [messages, setMessages] = useState<PlannerChatMessage[]>([{ role: 'assistant', content: 'Let’s make a trip that feels like you. Where would you like to start from, and what kind of days are you hoping for?' }]);
-  const [draft, setDraft] = useState<PlannerDraft>(blankDraft);
+  const savedPlanner = useMemo(() => {
+    try {
+      return JSON.parse(sessionStorage.getItem('safferni-planner') || 'null') as {
+        messages?: PlannerChatMessage[];
+        draft?: PlannerDraft;
+        ready?: boolean;
+      } | null;
+    } catch {
+      return null;
+    }
+  }, []);
+  const [messages, setMessages] = useState<PlannerChatMessage[]>(
+    () => savedPlanner?.messages?.length
+      ? savedPlanner.messages
+      : [{ role: 'assistant', content: 'Let’s make a trip that feels like you. Where would you like to start from, and what kind of days are you hoping for?' }],
+  );
+  const [draft, setDraft] = useState<PlannerDraft>(() => savedPlanner?.draft || blankDraft);
   const [input, setInput] = useState('');
-  const [ready, setReady] = useState(false);
+  const [ready, setReady] = useState(() => savedPlanner?.ready || false);
   const chat = usePlannerChat({ request: credentialsRequest });
   const search = useSearchTrips({ request: credentialsRequest });
+  const canBrowseStays = Boolean(draft.destinationCode && draft.destinationName);
+  const canBrowseFlights = Boolean(canBrowseStays && draft.origin);
+
+  useEffect(() => {
+    sessionStorage.setItem('safferni-planner', JSON.stringify({ messages, draft, ready }));
+  }, [messages, draft, ready]);
+
   const sendMessage = (value = input) => {
     const content = value.trim();
     if (!content || chat.isPending) return;
@@ -275,7 +297,13 @@ function PlannerPage() {
     setInput('');
     chat.mutate({ data: { messages: nextMessages, draft, mode: 'packages' } }, { onSuccess: (result) => { setMessages((current) => [...current, { role: 'assistant', content: result.reply }]); setDraft(result.draft); setReady(result.readyToSearch); }, onError: () => setMessages((current) => [...current, { role: 'assistant', content: 'I lost the thread for a moment. Try that again, or use one of the prompts below.' }]) });
   };
-  const runSearch = () => search.mutate({ data: { draft, category: 'all' } }, { onSuccess: (result) => { sessionStorage.setItem('safferni-search', JSON.stringify({ result, draft })); setLocation('/results'); } });
+  const runSearch = (category: 'all' | 'flights' | 'hotels' = 'all') => search.mutate(
+    { data: { draft, category } },
+    { onSuccess: (result) => {
+      sessionStorage.setItem('safferni-search', JSON.stringify({ result, draft, initialTab: category }));
+      setLocation('/results');
+    } },
+  );
   return (
     <>
       <div className="planner-intro"><div className="eyebrow">The Safferni assistant</div><h1 className="page-title" style={{ marginTop: 11 }}>Start with a feeling.<br /><em style={{ color: 'hsl(var(--accent))' }}>We’ll find the shape.</em></h1><p className="subcopy">No forms to wrestle with. Tell us the story you’re imagining and we’ll turn it into routes, rooms, and a trip you can actually take.</p></div>
@@ -301,7 +329,12 @@ function PlannerPage() {
           <div className="panel-body"><div className="draft-list">
             <DraftItem label="Leaving from" value={draft.origin} /><DraftItem label="Going to" value={draft.destinationName || draft.destinationCode} /><DraftItem label="When" value={draft.departureDate ? `${formatDate(draft.departureDate)}${draft.oneWay ? '' : ` — ${formatDate(draft.returnDate)}`}` : ''} /><DraftItem label="Travelers" value={`${draft.adults} adult${draft.adults === 1 ? '' : 's'}${draft.children ? ` · ${draft.children} child` : ''}`} /><DraftItem label="Style" value={draft.styles?.join(', ')} />
           </div>
-          {ready && <button className="btn btn-primary" style={{ width: '100%', marginTop: 18 }} type="button" onClick={runSearch} disabled={search.isPending} data-testid="button-find-trip-options">{search.isPending ? 'Finding options…' : 'Find my options'} <ArrowRight size={14} /></button>}
+          {canBrowseStays && <div style={{ display: 'grid', gap: 8, marginTop: 18 }}>
+            <button className="btn btn-primary" type="button" onClick={() => runSearch('hotels')} disabled={search.isPending} data-testid="button-browse-hotels">{search.isPending ? 'Finding stays…' : 'Browse stays'} <ArrowRight size={14} /></button>
+            <button className="btn btn-quiet" type="button" onClick={() => runSearch('flights')} disabled={search.isPending || !canBrowseFlights} title={canBrowseFlights ? undefined : 'Add your departure airport to browse flights'} data-testid="button-browse-flights">Browse flights <ArrowRight size={14} /></button>
+            {!canBrowseFlights && <p className="subcopy" style={{ fontSize: 12 }}>Add your departure airport to compare flights.</p>}
+          </div>}
+          {ready && <button className="btn btn-dark" style={{ width: '100%', marginTop: 8 }} type="button" onClick={() => runSearch('all')} disabled={search.isPending} data-testid="button-find-trip-options">{search.isPending ? 'Finding options…' : 'See flights + stays'} <ArrowRight size={14} /></button>}
           {search.isError && <p className="subcopy" style={{ color: 'hsl(var(--destructive))', marginTop: 12 }} data-testid="text-search-error">Search is unavailable right now. Try again when you’re ready.</p>}
           {!ready && <p className="subcopy" style={{ fontSize: 12, marginTop: 18 }} data-testid="text-planner-hint">Share a destination and dates to unlock live options.</p>}
           </div>
@@ -441,13 +474,13 @@ function InteractiveChatMap({ origin, destination }: { origin?: string; destinat
 }
 
 function ResultsPage() {
-  const stored = useMemo(() => { try { return JSON.parse(sessionStorage.getItem('safferni-search') || 'null') as { result: SearchResult; draft: PlannerDraft } | null; } catch { return null; } }, []);
-  const [tab, setTab] = useState<'all' | 'flights' | 'hotels'>('all');
+  const stored = useMemo(() => { try { return JSON.parse(sessionStorage.getItem('safferni-search') || 'null') as { result: SearchResult; draft: PlannerDraft; initialTab?: 'all' | 'flights' | 'hotels' } | null; } catch { return null; } }, []);
+  const [tab, setTab] = useState<'all' | 'flights' | 'hotels'>(stored?.initialTab || 'all');
   const [result, setResult] = useState<SearchResult | null>(stored?.result || null);
   const [draft] = useState<PlannerDraft>(stored?.draft || blankDraft);
   const search = useSearchTrips({ request: credentialsRequest });
   const { savedOffers, toggleSaved, saving } = useSavedOffers();
-  const retry = () => search.mutate({ data: { draft, category: 'all' } }, { onSuccess: (next) => { setResult(next); sessionStorage.setItem('safferni-search', JSON.stringify({ result: next, draft })); } });
+  const retry = () => search.mutate({ data: { draft, category: tab } }, { onSuccess: (next) => { setResult(next); sessionStorage.setItem('safferni-search', JSON.stringify({ result: next, draft, initialTab: tab })); } });
   if (search.isPending) return <><div className="eyebrow">Scanning the map</div><h1 className="page-title" style={{ marginTop: 13 }}>Finding your<br /><em>good options.</em></h1><div style={{ marginTop: 30 }}><LoadingState label="Searching flights and stays" /></div></>;
   if (!result) return <><div className="eyebrow">Search results</div><h1 className="page-title" style={{ marginTop: 13 }}>Nothing searched<br /><em>yet.</em></h1><div style={{ marginTop: 28 }}><EmptyState title="Let’s put a pin in it" copy="Start with the assistant and your flight and stay options will collect here." action={<Link href="/planner" className="btn btn-primary" data-testid="link-results-start-planner">Open planner <ArrowRight size={14} /></Link>} /></div></>;
   const flights = result.flights || [], hotels = result.hotels || [];
